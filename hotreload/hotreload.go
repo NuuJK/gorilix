@@ -193,7 +193,6 @@ func (h *HotReloader) UnregisterActor(actorID string) {
 	delete(h.actors, actorID)
 }
 
-// .
 func (h *HotReloader) UpgradeActor(ctx context.Context, actorID, moduleName, version string) error {
 	h.mutex.RLock()
 	actor, exists := h.actors[actorID]
