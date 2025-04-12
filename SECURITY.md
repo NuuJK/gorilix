@@ -13,7 +13,7 @@ Gorilix is currently in early development. The following versions are currently 
 We take the security of Gorilix seriously. If you believe you've found a security vulnerability, please follow these steps:
 
 1. **Do Not** disclose the vulnerability publicly (no GitHub issues, pull requests, or social media posts)
-2. Email the maintainers directly at [me@juliaklee.wtf] (replace with actual contact once established)
+2. Email the maintainers directly at me@juliaklee.wtf
 3. Include as much information as possible:
    - A description of the vulnerability
    - Steps to reproduce
