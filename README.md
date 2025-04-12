@@ -17,6 +17,8 @@ The idea was simple: create a lightweight system where actors (essentially indep
 - **Fault tolerance** - Build systems that automatically recover from failures with adjustable policies.
 - **Circuit breakers** - Prevent cascading failures in distributed environments by automatically halting malfunctioning components.
 - **Backoff strategies** - Control how retries happen in case of failures with linear, exponential, or jittered backoff strategies.
+- **Cluster support** - Build distributed systems across multiple nodes using the gossip protocol for automatic cluster membership and management.
+- **Efficient message serialization** - Protocol Buffers support for efficient and type-safe message serialization in distributed environments.
 
 ## Installation
 
@@ -147,9 +149,111 @@ options := supervisor.StrategyOptions{
 }
 ```
 
+### Cluster Support
+
+Gorilix provides cluster support through the Hashicorp Memberlist library, enabling auto-discovery and management of nodes in a distributed environment:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/kleeedolinux/gorilix/cluster/bridge"
+    "github.com/kleeedolinux/gorilix/system"
+)
+
+func main() {
+    // Create the actor system with a name
+    actorSystem := system.NewActorSystem("node1")
+
+    // Enable clustering with a bridge provider
+    actorSystem.SetClusterProvider(bridge.NewClusterProvider())
+    
+    // Configure and enable clustering
+    clusterConfig := &system.ClusterConfig{
+        NodeName: "node1",
+        BindAddr: "0.0.0.0",
+        BindPort: 7946,
+        Seeds:    []string{"othernode:7946"}, // Optional list of seed nodes
+    }
+    
+    err := actorSystem.EnableClustering(clusterConfig)
+    if err != nil {
+        log.Fatalf("Failed to enable clustering: %v", err)
+    }
+    
+    // Get the cluster instance
+    clusterInstance, _ := actorSystem.GetCluster()
+    
+    // Print cluster members
+    members := clusterInstance.Members()
+    for _, member := range members {
+        fmt.Printf("Node: %s at %s:%d\n", 
+            member.GetName(), member.GetAddress(), member.GetPort())
+    }
+    
+    // Rest of the application...
+}
+```
+
+### Protocol Buffer Serialization
+
+Gorilix supports efficient message serialization using Google Protocol Buffers, making it ideal for distributed systems:
+
+1. Define your messages in `.proto` files:
+
+```protobuf
+syntax = "proto3";
+package myapp;
+
+message UserMessage {
+    string user_id = 1;
+    string content = 2;
+    int64 timestamp = 3;
+}
+```
+
+2. Generate Go code with the protoc compiler:
+
+```bash
+protoc --go_out=. myapp.proto
+```
+
+3. Use the serialization functions in your application:
+
+```go
+import (
+    "github.com/kleeedolinux/gorilix/cluster"
+    pb "myapp/proto"
+)
+
+// Create a protobuf message
+userMsg := &pb.UserMessage{
+    UserId:    "user123",
+    Content:   "Hello from the distributed system!",
+    Timestamp: time.Now().Unix(),
+}
+
+// Serialize for transmission between nodes
+serialized, err := cluster.SerializeMessage(userMsg)
+if err != nil {
+    log.Fatalf("Failed to serialize: %v", err)
+}
+
+// Send to another node
+clusterInstance.SendToNode("other-node", serialized)
+```
+
 ## Documentation
 
-For more detailed information, check out the [fault tolerance guide](docs/fault_tolerance.md).
+For more detailed information, check out the following guides:
+- [Fault Tolerance Guide](docs/fault_tolerance.md)
+- [Clustering Guide](docs/clustering.md)
+- [Message Serialization Guide](docs/serialization.md)
 
 ## Examples
 

@@ -4,11 +4,44 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/kleeedolinux/gorilix/actor"
 	"github.com/kleeedolinux/gorilix/genserver"
+	"github.com/kleeedolinux/gorilix/messaging"
 	"github.com/kleeedolinux/gorilix/supervisor"
 )
+
+
+type ClusterConfig struct {
+	NodeName string
+	BindAddr string
+	BindPort int
+	Seeds    []string
+}
+
+
+type Node interface {
+	GetName() string
+	GetAddress() string
+	GetPort() uint16
+	GetStatus() int
+}
+
+
+type Cluster interface {
+	Start() error
+	Stop() error
+	Join(seeds []string) (int, error)
+	Leave(timeout time.Duration) error
+	Self() Node
+	Members() []Node
+}
+
+
+type ClusterProvider interface {
+	NewCluster(config *ClusterConfig, system interface{}) (Cluster, error)
+}
 
 type ActorSystem struct {
 	name            string
@@ -17,12 +50,14 @@ type ActorSystem struct {
 	namedRegistry   *NamedRegistry
 	actorRegistry   *Registry
 	monitorRegistry *actor.MonitorRegistry
+	messageBus      *messaging.MessageBus
+	cluster         Cluster
+	clusterProvider ClusterProvider
 	mu              sync.RWMutex
 	running         bool
 }
 
 func NewActorSystem(name string) *ActorSystem {
-
 	strategy := supervisor.NewStrategy(supervisor.OneForOne, 10, 60)
 	rootSupervisor := supervisor.NewSupervisor("root", strategy)
 
@@ -33,8 +68,95 @@ func NewActorSystem(name string) *ActorSystem {
 		namedRegistry:   NewNamedRegistry(),
 		actorRegistry:   NewRegistry(),
 		monitorRegistry: actor.NewMonitorRegistry(),
+		messageBus:      messaging.NewMessageBus(),
 		running:         true,
 	}
+}
+
+
+func (s *ActorSystem) SetClusterProvider(provider ClusterProvider) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clusterProvider = provider
+}
+
+
+func (s *ActorSystem) EnableClustering(config *ClusterConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.running {
+		return ErrSystemStopped
+	}
+
+	if s.cluster != nil {
+		return fmt.Errorf("clustering already enabled")
+	}
+
+	if s.clusterProvider == nil {
+		return fmt.Errorf("no cluster provider set, call SetClusterProvider first")
+	}
+
+	cluster, err := s.clusterProvider.NewCluster(config, s)
+	if err != nil {
+		return fmt.Errorf("failed to create cluster: %w", err)
+	}
+
+	s.cluster = cluster
+	return s.cluster.Start()
+}
+
+
+func (s *ActorSystem) GetCluster() (Cluster, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.running {
+		return nil, ErrSystemStopped
+	}
+
+	if s.cluster == nil {
+		return nil, fmt.Errorf("clustering not enabled")
+	}
+
+	return s.cluster, nil
+}
+
+
+func (s *ActorSystem) JoinCluster(seeds []string) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.running {
+		return 0, ErrSystemStopped
+	}
+
+	if s.cluster == nil {
+		return 0, fmt.Errorf("clustering not enabled")
+	}
+
+	return s.cluster.Join(seeds)
+}
+
+
+func (s *ActorSystem) LeaveCluster() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.running {
+		return ErrSystemStopped
+	}
+
+	if s.cluster == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return s.cluster.Leave(0)
+}
+
+
+func (s *ActorSystem) GetMessageBus() *messaging.MessageBus {
+	return s.messageBus
 }
 
 func (s *ActorSystem) SpawnActor(id string, receiver func(context.Context, interface{}) error, bufferSize int) (actor.ActorRef, error) {
@@ -214,16 +336,18 @@ func (s *ActorSystem) Demonitor(monitorID, monitoredID string) error {
 
 func (s *ActorSystem) Stop() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.running {
+		return nil
+	}
+
+	if s.cluster != nil {
+		_ = s.cluster.Stop()
+	}
+
 	s.running = false
-	s.mu.Unlock()
-
-	err := s.rootSupervisor.Stop()
-
-	s.mu.Lock()
-	s.registry = make(map[string]actor.ActorRef)
-	s.mu.Unlock()
-
-	return err
+	return s.rootSupervisor.Stop()
 }
 
 func (s *ActorSystem) SendMessage(ctx context.Context, actorID string, message interface{}) error {

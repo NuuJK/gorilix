@@ -1,0 +1,48 @@
+syntax = "proto3";
+package proto;
+
+option go_package = "github.com/kleeedolinux/gorilix/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+// MessageType represents different types of messages
+enum MessageType {
+  NORMAL = 0;
+  PRIORITY = 1;
+  BROADCAST = 2;
+  SYSTEM = 3;
+}
+
+message ClusterMessage {
+  string id = 1;
+  MessageType type = 2;
+  string sender = 3;
+  string receiver = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  google.protobuf.Any payload = 6;
+  map<string, string> headers = 7;
+  string topic = 8;
+  string node_id = 9;
+}
+
+message NodeState {
+  string node_id = 1;
+  string address = 2;
+  int32 port = 3;
+  google.protobuf.Timestamp last_heartbeat = 4;
+  map<string, string> metadata = 5;
+  NodeStatus status = 6;
+}
+
+enum NodeStatus {
+  ALIVE = 0;
+  SUSPECT = 1;
+  DEAD = 2;
+}
+
+message ClusterState {
+  repeated NodeState nodes = 1;
+  string cluster_name = 2;
+  int32 protocol_version = 3;
+} 
