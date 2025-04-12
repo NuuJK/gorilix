@@ -6,7 +6,6 @@ Welcome to the Gorilix documentation! Gorilix is a Golang library that enhances 
 
 - [Getting Started](getting-started.md)
 - [Core Concepts](core-concepts.md)
-- [Actor System](actor-system.md)
 - [Supervision](supervision.md)
 - [Messaging](messaging.md)
 - [Named Processes](named-processes.md)
